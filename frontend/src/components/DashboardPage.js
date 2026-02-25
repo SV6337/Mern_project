@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   status: 'Backlog',
   priority: 'Medium',
   assignee: '',
+  assignmentScope: 'all',
   labelsInput: ''
 };
 
@@ -33,6 +34,7 @@ function IssueModal({
   isOpen,
   form,
   setForm,
+  userOptions,
   onClose,
   onSave,
   onDelete,
@@ -108,14 +110,39 @@ function IssueModal({
         </div>
 
         <div className="mb-3">
-          <label className="form-label">Assignee</label>
-          <input
-            className="form-control"
-            value={form.assignee}
-            onChange={(event) => setForm((prev) => ({ ...prev, assignee: event.target.value }))}
-            placeholder="Name"
-          />
+          <label className="form-label">Send Issue To</label>
+          <select
+            className="form-select"
+            value={form.assignmentScope}
+            onChange={(event) => {
+              const nextScope = event.target.value;
+              setForm((prev) => ({
+                ...prev,
+                assignmentScope: nextScope,
+                assignee: nextScope === 'all' ? '' : prev.assignee
+              }));
+            }}
+          >
+            <option value="all">All</option>
+            <option value="one">One</option>
+          </select>
         </div>
+
+        {form.assignmentScope === 'one' && (
+          <div className="mb-3">
+            <label className="form-label">Assign To Employee</label>
+            <select
+              className="form-select"
+              value={form.assignee}
+              onChange={(event) => setForm((prev) => ({ ...prev, assignee: event.target.value }))}
+            >
+              <option value="">Select employee</option>
+              {userOptions.map((employee) => (
+                <option key={employee._id} value={employee.name}>{`${employee.name} (${employee.role})`}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="mb-3">
           <label className="form-label">Labels (comma separated)</label>
@@ -166,6 +193,7 @@ function DashboardPage({ user, onLogout }) {
   const [isSaving, setIsSaving] = useState(false);
   const [modalFeedback, setModalFeedback] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [userOptions, setUserOptions] = useState([]);
 
   const loadIssues = async (activeFilters = filters) => {
     setLoading(true);
@@ -182,6 +210,9 @@ function DashboardPage({ user, onLogout }) {
       }
       if (activeFilters.priority !== 'All') {
         params.priority = activeFilters.priority;
+      }
+      if (user?.id) {
+        params.viewerId = user.id;
       }
 
       const response = await axios.get('/api/issues', { params });
@@ -209,6 +240,24 @@ function DashboardPage({ user, onLogout }) {
 
     checkApi();
   }, []);
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        if (!user?.id) {
+          setUserOptions([]);
+          return;
+        }
+
+        const response = await axios.get('/api/users', { params: { requesterId: user.id } });
+        setUserOptions(response.data.users || []);
+      } catch (error) {
+        setUserOptions([]);
+      }
+    };
+
+    loadUsers();
+  }, [user?.id]);
 
   useEffect(() => {
     loadIssues(filters);
@@ -243,6 +292,7 @@ function DashboardPage({ user, onLogout }) {
       status: issue.status || 'Backlog',
       priority: issue.priority || 'Medium',
       assignee: issue.assignee || '',
+      assignmentScope: issue.assignmentScope || 'all',
       labelsInput: Array.isArray(issue.labels) ? issue.labels.join(', ') : ''
     });
     setIsModalOpen(true);
@@ -260,7 +310,9 @@ function DashboardPage({ user, onLogout }) {
     description: form.description,
     status: form.status,
     priority: form.priority,
-    assignee: form.assignee,
+    assignee: form.assignmentScope === 'one' ? form.assignee : '',
+    assignmentScope: form.assignmentScope,
+    requesterId: user?.id || '',
     labels: form.labelsInput
       .split(',')
       .map((label) => label.trim())
@@ -272,6 +324,12 @@ function DashboardPage({ user, onLogout }) {
     setModalFeedback(null);
 
     try {
+      if (form.assignmentScope === 'one' && !form.assignee.trim()) {
+        setModalFeedback({ type: 'error', message: 'Please select an employee when sending to one person' });
+        setIsSaving(false);
+        return;
+      }
+
       const payload = buildPayloadFromForm();
 
       if (editingIssueId) {
@@ -462,6 +520,7 @@ function DashboardPage({ user, onLogout }) {
         isOpen={isModalOpen}
         form={form}
         setForm={setForm}
+        userOptions={userOptions}
         onClose={closeModal}
         onSave={handleSaveIssue}
         onDelete={handleDeleteIssue}

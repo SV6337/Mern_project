@@ -1,8 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const router = express.Router();
-const User = require('../Models/User');
-const { Issue, ISSUE_PRIORITIES, ISSUE_STATUSES } = require('../Models/Issue');
+const { User, USER_ROLES } = require('../Models/User');
+const { Issue, ISSUE_PRIORITIES, ISSUE_STATUSES, ISSUE_ASSIGNMENT_SCOPES } = require('../Models/Issue');
 
 /*
 Current structure:
@@ -15,6 +15,62 @@ Refactor plan:
 */
 
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
+const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const roleRankMap = new Map(USER_ROLES.map((role, index) => [role, index]));
+
+const getRoleRank = (role) => {
+    if (!roleRankMap.has(role)) {
+        return -1;
+    }
+
+    return roleRankMap.get(role);
+};
+
+const getAssignableUsersForRole = async (requesterRole) => {
+    const requesterRank = getRoleRank(requesterRole || 'Intern');
+
+    if (requesterRank <= 0) {
+        return [];
+    }
+
+    const lowerRoles = USER_ROLES.filter((role) => getRoleRank(role) < requesterRank);
+    return User.find({ role: { $in: lowerRoles } }, { _id: 1, name: 1, email: 1, role: 1 }).sort({ name: 1 });
+};
+
+const validateAssignmentByHierarchy = async ({ requesterId, assigneeName, assignmentScope }) => {
+    if (assignmentScope !== 'one') {
+        return null;
+    }
+
+    if (!assigneeName) {
+        return 'Assignee is required when assignment is set to one';
+    }
+
+    if (!requesterId || !isValidObjectId(requesterId)) {
+        return 'Valid requester is required for role-based assignment';
+    }
+
+    const requester = await User.findById(requesterId);
+
+    if (!requester) {
+        return 'Requester not found';
+    }
+
+    const assignee = await User.findOne({ name: new RegExp(`^${escapeRegex(assigneeName)}$`, 'i') });
+
+    if (!assignee) {
+        return 'Selected assignee user was not found';
+    }
+
+    const requesterRank = getRoleRank(requester.role || 'Intern');
+    const assigneeRank = getRoleRank(assignee.role || 'Intern');
+
+    if (requesterRank <= assigneeRank) {
+        return `${requester.role || 'Intern'} can only assign work to lower roles`;
+    }
+
+    return null;
+};
 
 const normalizeLabels = (labelsInput) => {
     if (!labelsInput) {
@@ -76,6 +132,24 @@ const validateIssuePayload = (payload, isUpdate = false) => {
         normalizedPayload.assignee = String(payload.assignee || '').trim();
     }
 
+    if (Object.prototype.hasOwnProperty.call(payload, 'assignmentScope')) {
+        const assignmentScope = String(payload.assignmentScope || '').trim().toLowerCase();
+        if (!ISSUE_ASSIGNMENT_SCOPES.includes(assignmentScope)) {
+            errors.push(`Assignment scope must be one of: ${ISSUE_ASSIGNMENT_SCOPES.join(', ')}`);
+        } else {
+            normalizedPayload.assignmentScope = assignmentScope;
+        }
+    }
+
+    const effectiveAssignmentScope = normalizedPayload.assignmentScope || String(payload.assignmentScope || '').trim().toLowerCase();
+    const effectiveAssignee = Object.prototype.hasOwnProperty.call(normalizedPayload, 'assignee')
+        ? normalizedPayload.assignee
+        : String(payload.assignee || '').trim();
+
+    if (effectiveAssignmentScope === 'one' && !effectiveAssignee) {
+        errors.push('Assignee is required when assignment is set to one');
+    }
+
     if (Object.prototype.hasOwnProperty.call(payload, 'labels')) {
         normalizedPayload.labels = normalizeLabels(payload.labels);
     }
@@ -84,11 +158,11 @@ const validateIssuePayload = (payload, isUpdate = false) => {
 };
 
 router.get('/health', (req, res) => {
-    return res.json({ ok: true, message: 'API is running', statuses: ISSUE_STATUSES, priorities: ISSUE_PRIORITIES });
+    return res.json({ ok: true, message: 'API is running', statuses: ISSUE_STATUSES, priorities: ISSUE_PRIORITIES, assignmentScopes: ISSUE_ASSIGNMENT_SCOPES, roles: USER_ROLES });
 });
 
 router.get('/issues', async (req, res) => {
-    const { status, priority, search } = req.query;
+    const { status, priority, search, viewer, viewerId } = req.query;
     const query = {};
 
     if (status && status !== 'All') {
@@ -108,6 +182,43 @@ router.get('/issues', async (req, res) => {
     if (search) {
         const searchRegex = new RegExp(String(search).trim(), 'i');
         query.$or = [{ title: searchRegex }, { description: searchRegex }];
+    }
+
+    if (viewer && String(viewer).trim()) {
+        const viewerRegex = new RegExp(`^${escapeRegex(String(viewer).trim())}$`, 'i');
+        const visibilityCondition = {
+            $or: [
+                { assignmentScope: 'all' },
+                { assignmentScope: { $exists: false } },
+                { assignmentScope: 'one', assignee: viewerRegex }
+            ]
+        };
+
+        if (!query.$and) {
+            query.$and = [];
+        }
+
+        query.$and.push(visibilityCondition);
+    }
+
+    if (viewerId && isValidObjectId(viewerId)) {
+        const viewerUser = await User.findById(viewerId, { name: 1 });
+        if (viewerUser?.name) {
+            const viewerRegex = new RegExp(`^${escapeRegex(String(viewerUser.name).trim())}$`, 'i');
+            const visibilityCondition = {
+                $or: [
+                    { assignmentScope: 'all' },
+                    { assignmentScope: { $exists: false } },
+                    { assignmentScope: 'one', assignee: viewerRegex }
+                ]
+            };
+
+            if (!query.$and) {
+                query.$and = [];
+            }
+
+            query.$and.push(visibilityCondition);
+        }
     }
 
     try {
@@ -143,6 +254,7 @@ router.post('/issues', async (req, res) => {
         ...req.body,
         status: req.body.status || 'Backlog',
         priority: req.body.priority || 'Medium',
+        assignmentScope: req.body.assignmentScope || 'all',
         assignee: req.body.assignee || '',
         labels: req.body.labels || []
     };
@@ -154,6 +266,16 @@ router.post('/issues', async (req, res) => {
     }
 
     try {
+        const hierarchyError = await validateAssignmentByHierarchy({
+            requesterId: req.body.requesterId,
+            assigneeName: normalizedPayload.assignee,
+            assignmentScope: normalizedPayload.assignmentScope
+        });
+
+        if (hierarchyError) {
+            return res.status(403).json({ ok: false, message: hierarchyError });
+        }
+
         const createdIssue = await Issue.create(normalizedPayload);
         return res.status(201).json({ ok: true, message: 'Issue created', issue: createdIssue });
     } catch (error) {
@@ -179,6 +301,27 @@ router.put('/issues/:id', async (req, res) => {
     }
 
     try {
+        const existingIssue = await Issue.findById(id);
+
+        if (!existingIssue) {
+            return res.status(404).json({ ok: false, message: 'Issue not found' });
+        }
+
+        const effectiveScope = normalizedPayload.assignmentScope || existingIssue.assignmentScope || 'all';
+        const effectiveAssignee = Object.prototype.hasOwnProperty.call(normalizedPayload, 'assignee')
+            ? normalizedPayload.assignee
+            : existingIssue.assignee;
+
+        const hierarchyError = await validateAssignmentByHierarchy({
+            requesterId: req.body.requesterId,
+            assigneeName: effectiveAssignee,
+            assignmentScope: effectiveScope
+        });
+
+        if (hierarchyError) {
+            return res.status(403).json({ ok: false, message: hierarchyError });
+        }
+
         const updatedIssue = await Issue.findByIdAndUpdate(
             id,
             normalizedPayload,
@@ -215,13 +358,39 @@ router.delete('/issues/:id', async (req, res) => {
     }
 });
 
+router.get('/users', async (req, res) => {
+    const requesterId = String(req.query.requesterId || '').trim();
+
+    try {
+        if (!requesterId || !isValidObjectId(requesterId)) {
+            return res.status(400).json({ ok: false, message: 'Valid requesterId is required' });
+        }
+
+        const requester = await User.findById(requesterId, { role: 1 });
+
+        if (!requester) {
+            return res.status(404).json({ ok: false, message: 'Requester not found' });
+        }
+
+        const users = await getAssignableUsersForRole(requester.role);
+        return res.status(200).json({ ok: true, users });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: 'Failed to fetch users' });
+    }
+});
+
 router.post('/auth/signup', async (req, res) => {
     const name = (req.body.name || '').trim();
     const email = (req.body.email || '').trim().toLowerCase();
     const password = req.body.password || '';
+    const role = String(req.body.role || '').trim();
 
-    if (!name || !email || !password) {
-        return res.status(400).json({ ok: false, message: 'Name, email and password are required' });
+    if (!name || !email || !password || !role) {
+        return res.status(400).json({ ok: false, message: 'Name, email, password and role are required' });
+    }
+
+    if (!USER_ROLES.includes(role)) {
+        return res.status(400).json({ ok: false, message: `Role must be one of: ${USER_ROLES.join(', ')}` });
     }
 
     try {
@@ -231,7 +400,7 @@ router.post('/auth/signup', async (req, res) => {
             return res.status(409).json({ ok: false, message: 'Email already exists' });
         }
 
-        const createdUser = await User.create({ name, email, password });
+        const createdUser = await User.create({ name, email, password, role });
 
         return res.status(201).json({
             ok: true,
@@ -239,7 +408,8 @@ router.post('/auth/signup', async (req, res) => {
             user: {
                 id: createdUser._id,
                 name: createdUser.name,
-                email: createdUser.email
+                email: createdUser.email,
+                role: createdUser.role
             }
         });
     } catch (error) {
@@ -265,7 +435,8 @@ router.post('/auth/login', async (req, res) => {
                 user: {
                     id: user._id,
                     name: user.name,
-                    email: user.email
+                    email: user.email,
+                    role: user.role || 'Intern'
                 }
             });
         }

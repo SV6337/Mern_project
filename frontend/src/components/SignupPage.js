@@ -2,9 +2,11 @@ import { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 
+const ROLE_OPTIONS = ['Intern', 'Associate', 'Engineer', 'Lead', 'Manager', 'Admin'];
+
 function SignupPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'Intern' });
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -50,6 +52,14 @@ function SignupPage() {
             <div className="mb-3">
               <label className="form-label">Password</label>
               <input type="password" name="password" value={form.password} onChange={onChange} className="form-control" required />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Role</label>
+              <select name="role" value={form.role} onChange={onChange} className="form-select" required>
+                {ROLE_OPTIONS.map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
             </div>
             <div className="d-grid gap-2">
               <button type="submit" className="btn btn-success" disabled={loading}>

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const ISSUE_STATUSES = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
 const ISSUE_PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const ISSUE_ASSIGNMENT_SCOPES = ['all', 'one'];
 
 const issueSchema = new mongoose.Schema(
     {
@@ -30,6 +31,11 @@ const issueSchema = new mongoose.Schema(
             trim: true,
             default: ''
         },
+        assignmentScope: {
+            type: String,
+            enum: ISSUE_ASSIGNMENT_SCOPES,
+            default: 'all'
+        },
         labels: {
             type: [String],
             default: []
@@ -44,5 +50,6 @@ const issueSchema = new mongoose.Schema(
 module.exports = {
     Issue: mongoose.model('Issue', issueSchema),
     ISSUE_STATUSES,
-    ISSUE_PRIORITIES
+    ISSUE_PRIORITIES,
+    ISSUE_ASSIGNMENT_SCOPES
 };
