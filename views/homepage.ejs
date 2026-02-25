@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homepage</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div>
+      <% if (locals.msg) { %>
+        <div class="alert alert-info text-center mb-0"><%= locals.msg %></div>
+      <% } %>
+      
+      <nav class="navbar navbar-light bg-white border-bottom px-4 py-3">
+        <div class="container-fluid">
+          <span class="navbar-brand mb-0 h1 fw-bold" style="color: #0052CC;">
+            TaskBoard
+          </span>
+          <div class="d-flex gap-2">
+            <form action="/formdata" method="post" class="d-inline">
+              <button type="submit" name="btn" value="login" class="btn btn-outline-primary">
+                Log in
+              </button>
+            </form>
+            <form action="/formdata" method="post" class="d-inline">
+              <button type="submit" name="btn" value="signup" class="btn btn-primary">
+                Get started
+              </button>
+            </form>
+          </div>
+        </div>
+      </nav>
+
+      <div class="bg-light">
+        <div class="container py-5">
+          <div class="row align-items-center min-vh-75">
+            <div class="col-lg-6">
+              <h1 class="display-4 fw-bold mb-4" style="color: #172B4D;">
+                Move work forward
+              </h1>
+              <p class="lead text-muted mb-4">
+                Plan, track, and manage your projects with the tools your team already knows and loves. 
+                Keep everyone aligned with a flexible Kanban board.
+              </p>
+              <div class="d-flex gap-3 mb-4">
+                <form action="/formdata" method="post" class="d-inline">
+                  <button type="submit" name="btn" value="signup" class="btn btn-primary btn-lg px-4">
+                    Get started free
+                  </button>
+                </form>
+                <form action="/formdata" method="post" class="d-inline">
+                  <button type="submit" name="btn" value="login" class="btn btn-outline-primary btn-lg px-4">
+                    Sign in
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card shadow-sm border-0">
+                <div class="card-body p-4">
+                  <h5 class="card-title fw-bold mb-3">✨ Features</h5>
+                  <div class="d-flex flex-column gap-3">
+                    <div class="d-flex align-items-start gap-2">
+                      <span class="badge bg-primary">📋</span>
+                      <div>
+                        <strong>Kanban boards</strong>
+                        <p class="text-muted small mb-0">Visualize your workflow from start to finish</p>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2">
+                      <span class="badge bg-success">🎯</span>
+                      <div>
+                        <strong>Issue tracking</strong>
+                        <p class="text-muted small mb-0">Track bugs, tasks, and stories in one place</p>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2">
+                      <span class="badge bg-info">⚡</span>
+                      <div>
+                        <strong>Real-time updates</strong>
+                        <p class="text-muted small mb-0">Drag and drop to update task status instantly</p>
+                      </div>
+                    </div>
+                    <div class="d-flex align-items-start gap-2">
+                      <span class="badge bg-warning">🔍</span>
+                      <div>
+                        <strong>Advanced filtering</strong>
+                        <p class="text-muted small mb-0">Find what you need with powerful search and filters</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="container py-5">
+        <div class="text-center mb-5">
+          <h2 class="fw-bold mb-3" style="color: #172B4D;">
+            Everything you need to ship faster
+          </h2>
+          <p class="text-muted">
+            Powerful features to help your team collaborate and deliver
+          </p>
+        </div>
+        <div class="row g-4">
+          <div class="col-md-4">
+            <div class="text-center">
+              <div class="mb-3">
+                <span class="badge bg-primary rounded-circle p-3 fs-4">📊</span>
+              </div>
+              <h5 class="fw-bold">Track work</h5>
+              <p class="text-muted">
+                Manage tasks with customizable workflows that fit your team's needs
+              </p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-center">
+              <div class="mb-3">
+                <span class="badge bg-success rounded-circle p-3 fs-4">👥</span>
+              </div>
+              <h5 class="fw-bold">Collaborate</h5>
+              <p class="text-muted">
+                Assign tasks, set priorities, and keep your whole team in sync
+              </p>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="text-center">
+              <div class="mb-3">
+                <span class="badge bg-info rounded-circle p-3 fs-4">🚀</span>
+              </div>
+              <h5 class="fw-bold">Ship faster</h5>
+              <p class="text-muted">
+                Spend less time in meetings and more time building what matters
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+      </div>
+       <footer class="bg-dark text-white border-top py-4 mt-auto">
+  <div class="container text-center">
+    <p class="mb-0">&copy; Built By 
+      <a class="text-white-50 fw-medium text-decoration-none">Sathvik Vasishta (1JT23IS047)</a> 
+      and 
+      <a  class="text-white-50 fw-medium text-decoration-none">R P Varada Rangan (1JT23IS041)</a>
+    </p>
+  </div>
+</footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
