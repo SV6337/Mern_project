@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -12,6 +12,7 @@ Refactor in this file:
 
 const STATUS_COLUMNS = ['Backlog', 'To Do', 'In Progress', 'In Review', 'Done'];
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+const PRIORITY_RANK = { Low: 1, Medium: 2, High: 3, Critical: 4 };
 
 const EMPTY_FORM = {
   title: '',
@@ -28,6 +29,32 @@ const priorityClassName = {
   Medium: 'bg-info-subtle text-info-emphasis',
   High: 'bg-warning-subtle text-warning-emphasis',
   Critical: 'bg-danger-subtle text-danger-emphasis'
+};
+
+const getStoredJSON = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (error) {
+    return fallback;
+  }
+};
+
+const getInitials = (name) => {
+  if (!name || typeof name !== 'string') {
+    return 'NA';
+  }
+
+  const parts = name.trim().split(' ').filter(Boolean);
+  if (parts.length === 0) {
+    return 'NA';
+  }
+
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 };
 
 function IssueModal({
@@ -182,11 +209,15 @@ function DashboardPage({ user, onLogout }) {
   const [dbStatus, setDbStatus] = useState('checking');
   const [draggingIssueId, setDraggingIssueId] = useState('');
 
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState(() => getStoredJSON('jira-dashboard-filters', {
     search: '',
     status: 'All',
     priority: 'All'
-  });
+  }));
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('jira-dashboard-sort') || 'updated');
+  const [selectedLabel, setSelectedLabel] = useState(() => localStorage.getItem('jira-dashboard-label') || 'All');
+  const [showOnlyMine, setShowOnlyMine] = useState(() => localStorage.getItem('jira-dashboard-only-mine') === 'true');
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('jira-dashboard-view') || 'board');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingIssueId, setEditingIssueId] = useState('');
@@ -195,7 +226,7 @@ function DashboardPage({ user, onLogout }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [userOptions, setUserOptions] = useState([]);
 
-  const loadIssues = async (activeFilters = filters) => {
+  const loadIssues = useCallback(async (activeFilters) => {
     setLoading(true);
     setErrorMessage('');
 
@@ -226,7 +257,7 @@ function DashboardPage({ user, onLogout }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     const checkApi = async () => {
@@ -261,12 +292,101 @@ function DashboardPage({ user, onLogout }) {
 
   useEffect(() => {
     loadIssues(filters);
-  }, [filters.search, filters.status, filters.priority]);
+  }, [filters, loadIssues]);
+
+  useEffect(() => {
+    localStorage.setItem('jira-dashboard-filters', JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
+    localStorage.setItem('jira-dashboard-sort', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('jira-dashboard-label', selectedLabel);
+  }, [selectedLabel]);
+
+  useEffect(() => {
+    localStorage.setItem('jira-dashboard-only-mine', String(showOnlyMine));
+  }, [showOnlyMine]);
+
+  useEffect(() => {
+    localStorage.setItem('jira-dashboard-view', viewMode);
+  }, [viewMode]);
+
+  const availableLabels = useMemo(() => {
+    const labelSet = new Set();
+
+    for (const issue of issues) {
+      if (Array.isArray(issue.labels)) {
+        for (const label of issue.labels) {
+          if (label && typeof label === 'string') {
+            labelSet.add(label.trim());
+          }
+        }
+      }
+    }
+
+    return Array.from(labelSet).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [issues]);
+
+  const visibleIssues = useMemo(() => {
+    const byMine = showOnlyMine && user?.name
+      ? issues.filter((issue) => issue.assignee?.toLowerCase() === user.name.toLowerCase())
+      : issues;
+
+    const byLabel = selectedLabel !== 'All'
+      ? byMine.filter((issue) => Array.isArray(issue.labels) && issue.labels.includes(selectedLabel))
+      : byMine;
+
+    const sorted = [...byLabel];
+
+    if (sortBy === 'priority') {
+      sorted.sort((a, b) => (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0));
+      return sorted;
+    }
+
+    if (sortBy === 'title') {
+      sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+      return sorted;
+    }
+
+    if (sortBy === 'assignee') {
+      sorted.sort((a, b) => (a.assignee || '').localeCompare(b.assignee || ''));
+      return sorted;
+    }
+
+    if (sortBy === 'newest') {
+      sorted.sort((a, b) => new Date(b.createdAt || b.updatedAt || 0) - new Date(a.createdAt || a.updatedAt || 0));
+      return sorted;
+    }
+
+    sorted.sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
+    return sorted;
+  }, [issues, selectedLabel, showOnlyMine, sortBy, user?.name]);
+
+  const stats = useMemo(() => {
+    const total = visibleIssues.length;
+    const done = visibleIssues.filter((issue) => issue.status === 'Done').length;
+    const highPriority = visibleIssues.filter((issue) => ['High', 'Critical'].includes(issue.priority)).length;
+    const mine = user?.name
+      ? visibleIssues.filter((issue) => issue.assignee?.toLowerCase() === user.name.toLowerCase()).length
+      : 0;
+    const completion = total ? Math.round((done / total) * 100) : 0;
+
+    return {
+      total,
+      done,
+      highPriority,
+      mine,
+      completion
+    };
+  }, [visibleIssues, user?.name]);
 
   const grouped = useMemo(() => {
     const bucket = Object.fromEntries(STATUS_COLUMNS.map((status) => [status, []]));
 
-    for (const issue of issues) {
+    for (const issue of visibleIssues) {
       if (!bucket[issue.status]) {
         bucket[issue.status] = [];
       }
@@ -274,7 +394,7 @@ function DashboardPage({ user, onLogout }) {
     }
 
     return bucket;
-  }, [issues]);
+  }, [visibleIssues]);
 
   const openCreateModal = () => {
     setEditingIssueId('');
@@ -306,8 +426,8 @@ function DashboardPage({ user, onLogout }) {
   };
 
   const buildPayloadFromForm = () => ({
-    title: form.title,
-    description: form.description,
+    title: form.title.trim(),
+    description: form.description.trim(),
     status: form.status,
     priority: form.priority,
     assignee: form.assignmentScope === 'one' ? form.assignee : '',
@@ -324,6 +444,12 @@ function DashboardPage({ user, onLogout }) {
     setModalFeedback(null);
 
     try {
+      if (!form.title.trim()) {
+        setModalFeedback({ type: 'error', message: 'Please enter an issue title' });
+        setIsSaving(false);
+        return;
+      }
+
       if (form.assignmentScope === 'one' && !form.assignee.trim()) {
         setModalFeedback({ type: 'error', message: 'Please select an employee when sending to one person' });
         setIsSaving(false);
@@ -392,6 +518,13 @@ function DashboardPage({ user, onLogout }) {
     await updateIssueStatus(draggingIssueId, status);
   };
 
+  const clearFilters = () => {
+    setFilters({ search: '', status: 'All', priority: 'All' });
+    setSortBy('updated');
+    setSelectedLabel('All');
+    setShowOnlyMine(false);
+  };
+
   const handleLogoutClick = async () => {
     try {
       await axios.post('/api/auth/logout');
@@ -424,7 +557,58 @@ function DashboardPage({ user, onLogout }) {
             </span>
           </div>
         </div>
-        <button className="btn btn-primary" onClick={openCreateModal}>Create Issue</button>
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          <div className="btn-group" role="group" aria-label="View mode toggle">
+            <button
+              className={`btn btn-sm ${viewMode === 'board' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setViewMode('board')}
+            >
+              Board
+            </button>
+            <button
+              className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-outline-primary'}`}
+              onClick={() => setViewMode('list')}
+            >
+              List
+            </button>
+          </div>
+
+          <button className="btn btn-outline-secondary btn-sm" onClick={() => loadIssues(filters)}>
+            Refresh
+          </button>
+          <button className="btn btn-primary" onClick={openCreateModal}>Create Issue</button>
+        </div>
+      </div>
+
+      <div className="row g-3 mb-3">
+        <div className="col-md-3">
+          <div className="jira-stat-card">
+            <small className="text-muted">Total Issues</small>
+            <h3 className="mb-0">{stats.total}</h3>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="jira-stat-card">
+            <small className="text-muted">Completed</small>
+            <h3 className="mb-1">{stats.done}</h3>
+            <div className="progress" role="progressbar" aria-valuenow={stats.completion} aria-valuemin="0" aria-valuemax="100">
+              <div className="progress-bar bg-success" style={{ width: `${stats.completion}%` }} />
+            </div>
+            <small className="text-muted">{stats.completion}% done</small>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="jira-stat-card">
+            <small className="text-muted">High Priority</small>
+            <h3 className="mb-0 text-danger">{stats.highPriority}</h3>
+          </div>
+        </div>
+        <div className="col-md-3">
+          <div className="jira-stat-card">
+            <small className="text-muted">Assigned to You</small>
+            <h3 className="mb-0">{stats.mine}</h3>
+          </div>
+        </div>
       </div>
 
       <div className="card border-0 shadow-sm mb-3">
@@ -461,60 +645,176 @@ function DashboardPage({ user, onLogout }) {
               ))}
             </select>
           </div>
+
+          <div className="col-md-3">
+            <select
+              className="form-select"
+              value={selectedLabel}
+              onChange={(event) => setSelectedLabel(event.target.value)}
+            >
+              <option value="All">All Labels</option>
+              {availableLabels.map((label) => (
+                <option key={label} value={label}>{label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-md-3">
+            <select className="form-select" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
+              <option value="updated">Sort: Recently Updated</option>
+              <option value="newest">Sort: Newest Created</option>
+              <option value="priority">Sort: Priority</option>
+              <option value="title">Sort: Title</option>
+              <option value="assignee">Sort: Assignee</option>
+            </select>
+          </div>
+
+          <div className="col-md-3 d-flex align-items-center gap-3">
+            <div className="form-check form-switch m-0">
+              <input
+                id="onlyMine"
+                type="checkbox"
+                className="form-check-input"
+                checked={showOnlyMine}
+                onChange={(event) => setShowOnlyMine(event.target.checked)}
+              />
+              <label className="form-check-label" htmlFor="onlyMine">Only my issues</label>
+            </div>
+            <button className="btn btn-sm btn-outline-secondary" onClick={clearFilters}>Reset</button>
+          </div>
         </div>
       </div>
 
       {errorMessage && <div className="alert alert-danger">{errorMessage}</div>}
 
-      <div className="jira-board">
-        {STATUS_COLUMNS.map((status) => (
-          <div
-            key={status}
-            className="jira-column"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => handleDrop(status)}
-          >
-            <div className="jira-column-header">
-              <span>{status}</span>
-              <span className="badge text-bg-secondary rounded-pill">{(grouped[status] || []).length}</span>
-            </div>
+      {viewMode === 'board' ? (
+        <div className="jira-board">
+          {STATUS_COLUMNS.map((status) => (
+            <div
+              key={status}
+              className="jira-column"
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={() => handleDrop(status)}
+            >
+              <div className="jira-column-header">
+                <span>{status}</span>
+                <span className="badge text-bg-secondary rounded-pill">{(grouped[status] || []).length}</span>
+              </div>
 
-            <div className="jira-column-body">
-              {(grouped[status] || []).map((issue) => (
-                <div
-                  key={issue._id}
-                  className="jira-card"
-                  draggable
-                  onDragStart={() => setDraggingIssueId(issue._id)}
-                  onClick={() => openEditModal(issue)}
-                >
-                  <div className="d-flex justify-content-between align-items-start mb-2 gap-2">
-                    <h6 className="mb-0 jira-card-title">{issue.title}</h6>
-                    <span className={`badge ${priorityClassName[issue.priority] || 'text-bg-light'}`}>
-                      {issue.priority}
-                    </span>
+              <div className="jira-column-body">
+                {(grouped[status] || []).map((issue) => (
+                  <div
+                    key={issue._id}
+                    className="jira-card"
+                    draggable
+                    onDragStart={() => setDraggingIssueId(issue._id)}
+                    onClick={() => openEditModal(issue)}
+                  >
+                    <div className="d-flex justify-content-between align-items-start mb-2 gap-2">
+                      <h6 className="mb-0 jira-card-title">{issue.title}</h6>
+                      <span className={`badge ${priorityClassName[issue.priority] || 'text-bg-light'}`}>
+                        {issue.priority}
+                      </span>
+                    </div>
+
+                    {issue.description && (
+                      <p className="text-muted small mb-2 jira-card-description">
+                        {issue.description.split('\n')[0]}
+                      </p>
+                    )}
+
+                    {Array.isArray(issue.labels) && issue.labels.length > 0 && (
+                      <div className="jira-label-row mb-2">
+                        {issue.labels.slice(0, 3).map((label) => (
+                          <span key={label} className="badge rounded-pill text-bg-light border jira-label-chip">
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="d-flex justify-content-between align-items-center small text-muted">
+                      <div className="d-flex align-items-center gap-2">
+                        <span className="jira-avatar-mini">{getInitials(issue.assignee || 'Unassigned')}</span>
+                        <span>{issue.assignee || 'Unassigned'}</span>
+                      </div>
+                      <span>{issue.updatedAt ? new Date(issue.updatedAt).toLocaleDateString() : ''}</span>
+                    </div>
                   </div>
+                ))}
 
-                  {issue.description && (
-                    <p className="text-muted small mb-2 jira-card-description">
-                      {issue.description.split('\n')[0]}
-                    </p>
-                  )}
-
-                  <div className="d-flex justify-content-between align-items-center small text-muted">
-                    <span>{issue.assignee || 'Unassigned'}</span>
-                    <span>{Array.isArray(issue.labels) ? issue.labels.slice(0, 2).join(', ') : ''}</span>
-                  </div>
-                </div>
-              ))}
-
-              {!loading && (grouped[status] || []).length === 0 && (
-                <div className="jira-empty">Drop issues here</div>
-              )}
+                {!loading && (grouped[status] || []).length === 0 && (
+                  <div className="jira-empty">Drop issues here</div>
+                )}
+              </div>
             </div>
+          ))}
+        </div>
+      ) : (
+        <div className="card border-0 shadow-sm">
+          <div className="table-responsive">
+            <table className="table align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Priority</th>
+                  <th>Assignee</th>
+                  <th>Labels</th>
+                  <th>Move</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {visibleIssues.map((issue) => (
+                  <tr key={issue._id}>
+                    <td>
+                      <div className="fw-semibold">{issue.title}</div>
+                      {issue.description && <small className="text-muted">{issue.description.split('\n')[0]}</small>}
+                    </td>
+                    <td>{issue.status}</td>
+                    <td>
+                      <span className={`badge ${priorityClassName[issue.priority] || 'text-bg-light'}`}>
+                        {issue.priority}
+                      </span>
+                    </td>
+                    <td>{issue.assignee || 'Unassigned'}</td>
+                    <td>
+                      {Array.isArray(issue.labels) && issue.labels.length > 0
+                        ? issue.labels.slice(0, 2).join(', ')
+                        : '-'}
+                    </td>
+                    <td style={{ minWidth: '170px' }}>
+                      <select
+                        className="form-select form-select-sm"
+                        value={issue.status}
+                        onChange={(event) => updateIssueStatus(issue._id, event.target.value)}
+                      >
+                        {STATUS_COLUMNS.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <button className="btn btn-sm btn-outline-primary" onClick={() => openEditModal(issue)}>
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+
+                {!loading && visibleIssues.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="text-center text-muted py-4">
+                      No issues found for the selected filters
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       <IssueModal
         isOpen={isModalOpen}
