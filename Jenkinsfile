@@ -26,14 +26,26 @@ pipeline {
 
     stage('Install Backend Dependencies') {
       steps {
-        bat 'npm ci'
+        script {
+          if (isUnix()) {
+            sh 'npm ci'
+          } else {
+            bat 'npm ci'
+          }
+        }
       }
     }
 
     stage('Install Frontend Dependencies') {
       steps {
         dir('frontend') {
-          bat 'npm ci'
+          script {
+            if (isUnix()) {
+              sh 'npm ci'
+            } else {
+              bat 'npm ci'
+            }
+          }
         }
       }
     }
@@ -41,7 +53,13 @@ pipeline {
     stage('Build Frontend') {
       steps {
         dir('frontend') {
-          bat 'npm run build'
+          script {
+            if (isUnix()) {
+              sh 'npm run build'
+            } else {
+              bat 'npm run build'
+            }
+          }
         }
       }
     }
@@ -51,8 +69,12 @@ pipeline {
         script {
           def effectiveTag = params.IMAGE_TAG?.trim() ? params.IMAGE_TAG.trim() : "${env.BUILD_NUMBER}"
           env.EFFECTIVE_IMAGE = "${params.IMAGE_NAME}:${effectiveTag}"
+          if (isUnix()) {
+            sh "docker build -t ${env.EFFECTIVE_IMAGE} ."
+          } else {
+            bat "docker build -t ${env.EFFECTIVE_IMAGE} ."
+          }
         }
-        bat "docker build -t ${env.EFFECTIVE_IMAGE} ."
       }
     }
 
@@ -61,9 +83,20 @@ pipeline {
         expression { return params.DEPLOY_TO_K8S }
       }
       steps {
-        bat 'kubectl apply -k k8s'
-        bat "kubectl set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
-        bat "kubectl rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
+        script {
+          def kubeconfigPath = isUnix() ? "${env.HOME}/.kube/config" : "C:\\Users\\${env.USERNAME}\\.kube\\config"
+          withEnv(["KUBECONFIG=${kubeconfigPath}"]) {
+            if (isUnix()) {
+              sh 'kubectl apply -k k8s'
+              sh "kubectl set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
+              sh "kubectl rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
+            } else {
+              bat 'kubectl apply -k k8s'
+              bat "kubectl set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
+              bat "kubectl rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
+            }
+          }
+        }
       }
     }
   }
