@@ -84,16 +84,16 @@ pipeline {
       }
       steps {
         script {
-          def kubeconfigPath = isUnix() ? "${env.HOME}/.kube/config" : "C:\\Users\\${env.USERNAME}\\.kube\\config"
+          def kubeconfigPath = isUnix() ? "${env.HOME}/.kube/config" : "C:\\Users\\sathv\\.kube\\config"
           withEnv(["KUBECONFIG=${kubeconfigPath}"]) {
             if (isUnix()) {
-              sh 'kubectl apply -k k8s'
-              sh "kubectl set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
-              sh "kubectl rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
+              sh "kubectl --kubeconfig=${kubeconfigPath} apply -k k8s"
+              sh "kubectl --kubeconfig=${kubeconfigPath} set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
+              sh "kubectl --kubeconfig=${kubeconfigPath} rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
             } else {
-              bat 'kubectl apply -k k8s'
-              bat "kubectl set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
-              bat "kubectl rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
+              bat "kubectl --kubeconfig=${kubeconfigPath} apply -k k8s"
+              bat "kubectl --kubeconfig=${kubeconfigPath} set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
+              bat "kubectl --kubeconfig=${kubeconfigPath} rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
             }
           }
         }
