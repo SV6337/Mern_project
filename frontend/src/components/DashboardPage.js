@@ -537,12 +537,38 @@ function DashboardPage({ user, onLogout }) {
     navigate('/');
   };
 
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm('This will permanently delete your account. Do you want to continue?');
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const response = await axios.post('/api/auth/delete-account', {
+        userId: user?.id,
+        email: user?.email
+      });
+
+      window.alert(response.data?.message || 'Account deleted successfully');
+
+      if (onLogout) {
+        onLogout();
+      }
+
+      navigate('/signup');
+    } catch (error) {
+      window.alert(error.response?.data?.message || 'Could not delete account. Try again.');
+    }
+  };
+
   return (
     <div className="jira-page container-fluid py-4 px-4">
       <nav className="navbar navbar-dark bg-dark rounded mb-3 px-3">
         <span className="navbar-brand mb-0 h5">Dashboard</span>
         <div className="d-flex align-items-center gap-3 text-white">
           <small>Welcome {user?.name || 'User'}</small>
+          <button onClick={handleDeleteAccount} className="btn btn-outline-danger btn-sm">Delete Account</button>
           <button onClick={handleLogoutClick} className="btn btn-outline-light btn-sm">Log out</button>
         </div>
       </nav>

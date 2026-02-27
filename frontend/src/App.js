@@ -5,6 +5,7 @@ import './App.css';
 import HomePage from './components/HomePage';
 import SignupPage from './components/SignupPage';
 import LoginPage from './components/LoginPage';
+import ForgotPasswordPage from './components/ForgotPasswordPage';
 import DashboardPage from './components/DashboardPage';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -45,6 +46,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/signup" element={<SignupPage />} />
         <Route path="/login" element={<LoginPage onLogin={handleLogin} />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route
           path="/dashboard"
           element={

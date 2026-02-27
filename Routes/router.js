@@ -417,6 +417,34 @@ router.post('/auth/signup', async (req, res) => {
     }
 });
 
+router.post('/auth/forgot-password', async (req, res) => {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const newPassword = req.body.newPassword || '';
+
+    if (!email || !newPassword) {
+        return res.status(400).json({ ok: false, message: 'Email and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+        return res.status(400).json({ ok: false, message: 'New password must be at least 6 characters' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ ok: false, message: 'User not found for this email' });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        return res.status(200).json({ ok: true, message: 'Password updated successfully. Please login.' });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: 'Could not reset password. Try again.' });
+    }
+});
+
 router.post('/auth/login', async (req, res) => {
     const email = (req.body.email || '').trim().toLowerCase();
     const password = req.body.password || '';
@@ -455,6 +483,38 @@ router.post('/auth/login', async (req, res) => {
 
 router.post('/auth/logout', (req, res) => {
     return res.status(200).json({ ok: true, message: 'Logged out' });
+});
+
+router.post('/auth/delete-account', async (req, res) => {
+    const userId = String(req.body.userId || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
+
+    if (!userId || !isValidObjectId(userId) || !email) {
+        return res.status(400).json({ ok: false, message: 'Valid userId and email are required' });
+    }
+
+    try {
+        const user = await User.findById(userId);
+
+        if (!user) {
+            return res.status(404).json({ ok: false, message: 'User not found' });
+        }
+
+        if ((user.email || '').toLowerCase() !== email) {
+            return res.status(403).json({ ok: false, message: 'Email does not match account' });
+        }
+
+        await Issue.updateMany(
+            { assignee: new RegExp(`^${escapeRegex(user.name)}$`, 'i') },
+            { $set: { assignee: '', assignmentScope: 'all' } }
+        );
+
+        await User.findByIdAndDelete(userId);
+
+        return res.status(200).json({ ok: true, message: 'Account deleted successfully' });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: 'Failed to delete account' });
+    }
 });
 
 module.exports = router;

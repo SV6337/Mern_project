@@ -1,6 +1,78 @@
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  background: linear-gradient(180deg, #f5f7fd 0%, #edf2ff 100%);
+}
+
+.auth-card {
+  width: min(980px, 100%);
+  overflow: hidden;
+  border-radius: 18px;
+  animation: auth-fade-up 0.5s ease;
+}
+
+.auth-info-panel {
+  background: linear-gradient(160deg, #2d4a8a 0%, #1f2f55 100%);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+}
+
+.auth-info-panel-signup {
+  background: linear-gradient(160deg, #165a4a 0%, #1b365f 100%);
+}
+
+.auth-info-content {
+  padding: 2.5rem 2rem;
+  animation: auth-float 3.8s ease-in-out infinite;
+}
+
+.auth-info-content h2 {
+  font-weight: 700;
+}
+
+.auth-info-content p {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.auth-info-list {
+  padding-left: 1.1rem;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.auth-info-list li {
+  margin-bottom: 0.5rem;
+}
+
+.auth-form-panel {
+  animation: auth-slide-in 0.45s ease;
+}
+
+.auth-form-panel h2 {
+  font-weight: 700;
+}
+
+.auth-form-panel .form-control,
+.auth-form-panel .form-select {
+  border-radius: 10px;
+  border-color: #d9e0ef;
+  min-height: 44px;
+}
+
+.auth-form-panel .btn {
+  border-radius: 10px;
+}
+
 .jira-page {
   min-height: 100vh;
   background: linear-gradient(180deg, #f8faff 0%, #f3f5fa 100%);
+}
+
+.jira-page .navbar {
+  background: linear-gradient(120deg, #182236 0%, #223a63 100%) !important;
+  box-shadow: 0 10px 24px rgba(16, 35, 66, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .jira-board {
@@ -11,12 +83,13 @@
 }
 
 .jira-column {
-  background: #eef1f6;
+  background: #eef2f8;
   border-radius: 14px;
   min-height: 320px;
   display: flex;
   flex-direction: column;
   border: 1px solid #dce2ec;
+  box-shadow: 0 6px 16px rgba(14, 34, 66, 0.08);
 }
 
 .jira-column-header {
@@ -33,6 +106,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: 220px;
 }
 
 .jira-card {
@@ -48,6 +122,10 @@
 .jira-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 20px rgba(9, 30, 66, 0.16);
+}
+
+.jira-card:active {
+  transform: translateY(0);
 }
 
 .jira-card-title {
@@ -81,6 +159,12 @@
   padding: 14px;
   height: 100%;
   box-shadow: 0 4px 14px rgba(12, 36, 74, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.jira-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 22px rgba(12, 36, 74, 0.14);
 }
 
 .jira-label-row {
@@ -125,6 +209,52 @@
   max-height: calc(100vh - 40px);
   overflow-y: auto;
   box-shadow: 0 20px 40px rgba(7, 20, 40, 0.35);
+  animation: auth-fade-up 0.25s ease;
+}
+
+.jira-page .card.border-0.shadow-sm {
+  border-radius: 14px;
+}
+
+.jira-page .table thead th {
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+@keyframes auth-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes auth-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 @media (max-width: 1400px) {
@@ -134,6 +264,23 @@
 }
 
 @media (max-width: 900px) {
+  .auth-page {
+    align-items: stretch;
+  }
+
+  .auth-card {
+    border-radius: 14px;
+  }
+
+  .auth-info-content {
+    padding: 1.5rem;
+    animation: none;
+  }
+
+  .auth-form-panel {
+    animation: none;
+  }
+
   .jira-board {
     grid-template-columns: repeat(1, minmax(220px, 1fr));
   }
