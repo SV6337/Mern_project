@@ -37,7 +37,7 @@ if (fs.existsSync(frontendBuildPath)) {
     });
 }
 
-const mongoUri = process.env.MONGODB_URI || "mongodb+srv://sathvikvasishta0_db_user:rn7pcs6337@mern.gtcn3bo.mongodb.net/myapp?appName=Mern";
+const mongoUri = process.env.MONGODB_URI || 'mongodb://mongo:27017/mern_app';
 
 if (!mongoUri) {
     console.error('MONGODB_URI is missing. Add it in your .env file.');
@@ -46,7 +46,8 @@ if (!mongoUri) {
 
 mongoose.connect(mongoUri)
     .then(() => {
-        console.log('MongoDB Atlas connected');
+        console.log('MongoDB connected');
+        console.log('Connection URI:', mongoUri);
         console.log('Database:', mongoose.connection.name);
         console.log('Collections used: users, issues');
         app.listen(port, () => {

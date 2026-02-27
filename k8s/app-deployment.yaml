@@ -23,7 +23,7 @@ spec:
             - name: PORT
               value: "5000"
             - name: MONGODB_URI
-              value: mongodb+srv://sathvikvasishta0_db_user:rn7pcs6337@mern.gtcn3bo.mongodb.net/myapp?appName=Mern
+              value: mongodb://mongo:27017/mern_app
           readinessProbe:
             httpGet:
               path: /api/health
