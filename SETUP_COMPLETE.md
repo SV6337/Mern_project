@@ -33,6 +33,12 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 2. Set env var:
    - `MONGODB_URI` = MongoDB Atlas URI
    - `SERVE_FRONTEND = false`
+   - `SMTP_HOST`
+   - `SMTP_PORT`
+   - `SMTP_SECURE`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+   - `SMTP_FROM`
 3. Copy Deploy Hook URL from:
    - Service -> **Settings** -> **Deploy Hook**
 

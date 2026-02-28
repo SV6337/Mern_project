@@ -61,6 +61,9 @@ docker compose up -d --build
 5. Set environment variable:
    - `MONGODB_URI` = your Atlas URI
    - `SERVE_FRONTEND=false`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+   - `SMTP_FROM` (optional; defaults to `SMTP_USER`)
 6. Deploy.
 
 ### Option B: Manual Web Service
@@ -71,6 +74,9 @@ docker compose up -d --build
 - Environment variables:
    - `MONGODB_URI`
    - `SERVE_FRONTEND=false`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+   - `SMTP_FROM` (optional)
 
 ## Deploy Frontend to Vercel
 

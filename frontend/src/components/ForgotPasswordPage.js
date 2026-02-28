@@ -4,17 +4,58 @@ import { Link, useNavigate } from 'react-router-dom';
 
 function ForgotPasswordPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', newPassword: '', confirmPassword: '' });
+  const [form, setForm] = useState({ email: '', otp: '', newPassword: '', confirmPassword: '' });
   const [message, setMessage] = useState('');
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   const onChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const onSubmit = async (event) => {
+  const requestOtp = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/auth/forgot-password/request-otp', { email: form.email });
+      setIsError(false);
+      setOtpSent(true);
+      setMessage(response.data.message || 'OTP sent to registered email');
+    } catch (error) {
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Could not send OTP. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const verifyOtp = async (event) => {
+    event.preventDefault();
+    setMessage('');
+    setLoading(true);
+
+    try {
+      const response = await axios.post('/api/auth/forgot-password/verify-otp', {
+        email: form.email,
+        otp: form.otp
+      });
+      setIsError(false);
+      setOtpVerified(true);
+      setMessage(response.data.message || 'OTP verified');
+    } catch (error) {
+      setIsError(true);
+      setMessage(error.response?.data?.message || 'Could not verify OTP. Try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async (event) => {
     event.preventDefault();
     setMessage('');
 
@@ -63,11 +104,11 @@ function ForgotPasswordPage() {
           <div className="col-lg-7">
             <div className="card-body p-4 p-md-5 auth-form-panel">
               <h2 className="mb-1">Forgot Password</h2>
-              <p className="text-muted mb-4">Update your password and continue securely.</p>
+              <p className="text-muted mb-4">Request OTP, verify it, then reset your password.</p>
 
               {message && <div className={`alert ${isError ? 'alert-danger' : 'alert-success'}`}>{message}</div>}
 
-              <form onSubmit={onSubmit}>
+              <form onSubmit={requestOtp}>
                 <div className="mb-3">
                   <label className="form-label">Email</label>
                   <input
@@ -76,37 +117,77 @@ function ForgotPasswordPage() {
                     value={form.email}
                     onChange={onChange}
                     className="form-control"
+                    disabled={otpSent}
                     required
                   />
                 </div>
-                <div className="mb-3">
-                  <label className="form-label">New Password</label>
-                  <input
-                    type="password"
-                    name="newPassword"
-                    value={form.newPassword}
-                    onChange={onChange}
-                    className="form-control"
-                    minLength={6}
-                    required
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label">Confirm Password</label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={form.confirmPassword}
-                    onChange={onChange}
-                    className="form-control"
-                    minLength={6}
-                    required
-                  />
-                </div>
+
+                {!otpSent && (
+                  <div className="d-grid gap-2 mb-3">
+                    <button type="submit" className="btn btn-primary" disabled={loading}>
+                      {loading ? 'Sending OTP...' : 'Send OTP'}
+                    </button>
+                  </div>
+                )}
+
+                {otpSent && !otpVerified && (
+                  <>
+                    <div className="mb-3">
+                      <label className="form-label">OTP</label>
+                      <input
+                        type="text"
+                        name="otp"
+                        value={form.otp}
+                        onChange={onChange}
+                        className="form-control"
+                        minLength={6}
+                        maxLength={6}
+                        required
+                      />
+                    </div>
+                    <div className="d-grid gap-2 mb-3">
+                      <button type="button" className="btn btn-primary" onClick={verifyOtp} disabled={loading}>
+                        {loading ? 'Verifying OTP...' : 'Verify OTP'}
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {otpVerified && (
+                  <>
+                    <div className="mb-3">
+                      <label className="form-label">New Password</label>
+                      <input
+                        type="password"
+                        name="newPassword"
+                        value={form.newPassword}
+                        onChange={onChange}
+                        className="form-control"
+                        minLength={6}
+                        required
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Confirm Password</label>
+                      <input
+                        type="password"
+                        name="confirmPassword"
+                        value={form.confirmPassword}
+                        onChange={onChange}
+                        className="form-control"
+                        minLength={6}
+                        required
+                      />
+                    </div>
+                    <div className="d-grid gap-2 mb-3">
+                      <button type="button" className="btn btn-primary" onClick={resetPassword} disabled={loading}>
+                        {loading ? 'Updating...' : 'Update Password'}
+                      </button>
+                    </div>
+                  </>
+                )}
+
                 <div className="d-grid gap-2">
-                  <button type="submit" className="btn btn-primary" disabled={loading}>
-                    {loading ? 'Updating...' : 'Update Password'}
-                  </button>
                   <Link to="/login" className="btn btn-outline-primary">Back to Login</Link>
                 </div>
               </form>

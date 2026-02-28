@@ -1,5 +1,6 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const nodemailer = require('nodemailer');
 const router = express.Router();
 const { User, USER_ROLES } = require('../Models/User');
 const { Issue, ISSUE_PRIORITIES, ISSUE_STATUSES, ISSUE_ASSIGNMENT_SCOPES } = require('../Models/Issue');
@@ -17,6 +18,32 @@ Refactor plan:
 const isValidObjectId = (value) => mongoose.Types.ObjectId.isValid(value);
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const roleRankMap = new Map(USER_ROLES.map((role, index) => [role, index]));
+const OTP_LENGTH = 6;
+const OTP_TTL_MS = 10 * 60 * 1000;
+const SMTP_CONFIG = {
+    user: String(process.env.SMTP_USER || 'sathvikv77@gmail.com').trim(),
+    pass: String(process.env.SMTP_PASS || 'awyi mqoy nygw hgue').trim(),
+    from: String(process.env.SMTP_FROM || process.env.SMTP_USER || 'sathvikv77@gmail.com').trim()
+};
+
+const createOtpCode = () => String(Math.floor(100000 + Math.random() * 900000));
+
+const getMailTransporter = () => {
+    const user = SMTP_CONFIG.user;
+    const pass = SMTP_CONFIG.pass;
+
+    if (!user || !pass) {
+        return null;
+    }
+
+    return nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+            user,
+            pass
+        }
+    });
+};
 
 const getRoleRank = (role) => {
     if (!roleRankMap.has(role)) {
@@ -417,6 +444,95 @@ router.post('/auth/signup', async (req, res) => {
     }
 });
 
+router.post('/auth/forgot-password/request-otp', async (req, res) => {
+    const email = (req.body.email || '').trim().toLowerCase();
+
+    if (!email) {
+        return res.status(400).json({ ok: false, message: 'Email is required' });
+    }
+
+    const transporter = getMailTransporter();
+
+    if (!transporter) {
+        return res.status(500).json({ ok: false, message: 'Email service is not configured. Please contact admin.' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ ok: false, message: 'User not found for this email' });
+        }
+
+        const otp = createOtpCode();
+        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+
+        user.passwordResetOtp = otp;
+        user.passwordResetOtpExpiresAt = expiresAt;
+        user.passwordResetOtpVerified = false;
+        await user.save();
+
+        const from = SMTP_CONFIG.from || SMTP_CONFIG.user;
+        const appName = String(process.env.APP_NAME || 'MERN Task Manager').trim();
+
+        await transporter.sendMail({
+            from,
+            to: email,
+            subject: `${appName} password reset OTP`,
+            text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
+            html: `<p>Your OTP is <strong>${otp}</strong>.</p><p>It is valid for 10 minutes.</p>`
+        });
+
+        return res.status(200).json({ ok: true, message: 'OTP sent to your registered email' });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: 'Failed to send OTP. Try again.' });
+    }
+});
+
+router.post('/auth/forgot-password/verify-otp', async (req, res) => {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const otp = String(req.body.otp || '').trim();
+
+    if (!email || !otp) {
+        return res.status(400).json({ ok: false, message: 'Email and OTP are required' });
+    }
+
+    if (otp.length !== OTP_LENGTH) {
+        return res.status(400).json({ ok: false, message: 'OTP must be 6 digits' });
+    }
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ ok: false, message: 'User not found for this email' });
+        }
+
+        if (!user.passwordResetOtp || !user.passwordResetOtpExpiresAt) {
+            return res.status(400).json({ ok: false, message: 'Please request OTP first' });
+        }
+
+        if (user.passwordResetOtpExpiresAt.getTime() < Date.now()) {
+            user.passwordResetOtp = '';
+            user.passwordResetOtpExpiresAt = null;
+            user.passwordResetOtpVerified = false;
+            await user.save();
+            return res.status(400).json({ ok: false, message: 'OTP expired. Please request a new OTP.' });
+        }
+
+        if (user.passwordResetOtp !== otp) {
+            return res.status(400).json({ ok: false, message: 'Invalid OTP' });
+        }
+
+        user.passwordResetOtpVerified = true;
+        await user.save();
+
+        return res.status(200).json({ ok: true, message: 'OTP verified. You can now reset password.' });
+    } catch (error) {
+        return res.status(500).json({ ok: false, message: 'Could not verify OTP. Try again.' });
+    }
+});
+
 router.post('/auth/forgot-password', async (req, res) => {
     const email = (req.body.email || '').trim().toLowerCase();
     const newPassword = req.body.newPassword || '';
@@ -436,7 +552,14 @@ router.post('/auth/forgot-password', async (req, res) => {
             return res.status(404).json({ ok: false, message: 'User not found for this email' });
         }
 
+        if (!user.passwordResetOtpVerified) {
+            return res.status(403).json({ ok: false, message: 'Verify OTP before resetting password' });
+        }
+
         user.password = newPassword;
+        user.passwordResetOtp = '';
+        user.passwordResetOtpExpiresAt = null;
+        user.passwordResetOtpVerified = false;
         await user.save();
 
         return res.status(200).json({ ok: true, message: 'Password updated successfully. Please login.' });

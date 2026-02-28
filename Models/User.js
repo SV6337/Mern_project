@@ -25,6 +25,18 @@ const userSchema = new mongoose.Schema(
             enum: USER_ROLES,
             default: 'Intern',
             required: true
+        },
+        passwordResetOtp: {
+            type: String,
+            default: ''
+        },
+        passwordResetOtpExpiresAt: {
+            type: Date,
+            default: null
+        },
+        passwordResetOtpVerified: {
+            type: Boolean,
+            default: false
         }
     },
     {
