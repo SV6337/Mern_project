@@ -10,7 +10,7 @@
   "scripts": {
     "server": "nodemon server.js",
     "client": "npm --prefix frontend start",
-    "build": "npm --prefix frontend run build",
+    "build": "npm --prefix frontend ci && npm --prefix frontend run build",
     "start": "node server.js",
     "dev": "concurrently \"npm run server\" \"npm run client\""
   },

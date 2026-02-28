@@ -50,14 +50,14 @@ Set `MONGODB_URI` in `.env`, then:
 docker compose up -d --build
 ```
 
-## Deploy Backend to Render
+## Deploy Backend to Render (Docker)
 
 ### Option A: Render Blueprint (recommended)
 
 1. Push this repo to GitHub.
 2. In Render, create **New +** -> **Blueprint**.
 3. Select this repo.
-4. Render reads `render.yaml` and creates service `mern-2-api`.
+4. Render reads `render.yaml` and creates Docker web service `mern-2-api`.
 5. Set environment variable:
    - `MONGODB_URI` = your Atlas URI
    - `SERVE_FRONTEND=false`
@@ -65,9 +65,9 @@ docker compose up -d --build
 
 ### Option B: Manual Web Service
 
-- Runtime: `Node`
-- Build command: `npm ci && npm --prefix frontend ci && npm run build`
-- Start command: `npm start`
+- Environment: `Docker`
+- Dockerfile path: `./Dockerfile`
+- Docker context: `.`
 - Environment variables:
    - `MONGODB_URI`
    - `SERVE_FRONTEND=false`

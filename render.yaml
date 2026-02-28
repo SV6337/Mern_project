@@ -1,11 +1,12 @@
 services:
   - type: web
     name: mern-2-api
-    runtime: node
+    runtime: docker
     plan: free
     rootDir: .
-    buildCommand: npm ci && npm --prefix frontend ci && npm run build
-    startCommand: npm start
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
