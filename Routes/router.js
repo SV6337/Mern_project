@@ -21,9 +21,9 @@ const roleRankMap = new Map(USER_ROLES.map((role, index) => [role, index]));
 const OTP_LENGTH = 6;
 const OTP_TTL_MS = 10 * 60 * 1000;
 const SMTP_CONFIG = {
-    user: String(process.env.SMTP_USER || 'sathvikv77@gmail.com').trim(),
-    pass: String(process.env.SMTP_PASS || 'awyi mqoy nygw hgue').trim(),
-    from: String(process.env.SMTP_FROM || process.env.SMTP_USER || 'sathvikv77@gmail.com').trim()
+    user: String(process.env.SMTP_USER || '').trim(),
+    pass: String(process.env.SMTP_PASS || '').trim(),
+    from: String(process.env.SMTP_FROM || process.env.SMTP_USER || '').trim()
 };
 
 const createOtpCode = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -485,7 +485,14 @@ router.post('/auth/forgot-password/request-otp', async (req, res) => {
 
         return res.status(200).json({ ok: true, message: 'OTP sent to your registered email' });
     } catch (error) {
-        return res.status(500).json({ ok: false, message: 'Failed to send OTP. Try again.' });
+        const errorMessage = String(error?.message || '').toLowerCase();
+
+        if (errorMessage.includes('invalid login') || errorMessage.includes('application-specific password')) {
+            return res.status(500).json({ ok: false, message: 'SMTP authentication failed. Set valid Gmail SMTP_USER and SMTP_PASS (App Password).' });
+        }
+
+        console.error('OTP mail error:', error?.message || error);
+        return res.status(500).json({ ok: false, message: 'Failed to send OTP. Check SMTP_USER and SMTP_PASS in Render.' });
     }
 });
 
