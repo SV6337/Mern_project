@@ -50,16 +50,17 @@ Set `MONGODB_URI` in `.env`, then:
 docker compose up -d --build
 ```
 
-## Deploy to Render
+## Deploy Backend to Render
 
 ### Option A: Render Blueprint (recommended)
 
 1. Push this repo to GitHub.
 2. In Render, create **New +** -> **Blueprint**.
 3. Select this repo.
-4. Render reads `render.yaml` and creates service `mern-2`.
+4. Render reads `render.yaml` and creates service `mern-2-api`.
 5. Set environment variable:
    - `MONGODB_URI` = your Atlas URI
+   - `SERVE_FRONTEND=false`
 6. Deploy.
 
 ### Option B: Manual Web Service
@@ -67,7 +68,20 @@ docker compose up -d --build
 - Runtime: `Node`
 - Build command: `npm ci && npm --prefix frontend ci && npm run build`
 - Start command: `npm start`
-- Environment variable: `MONGODB_URI`
+- Environment variables:
+   - `MONGODB_URI`
+   - `SERVE_FRONTEND=false`
+
+## Deploy Frontend to Vercel
+
+1. In Vercel, import the same GitHub repo.
+2. Set **Root Directory** to `frontend`.
+3. Framework preset: `Create React App`.
+4. Add environment variable:
+    - `REACT_APP_API_BASE_URL=https://<your-render-service>.onrender.com`
+5. Deploy.
+
+Frontend routes are handled by `frontend/vercel.json`.
 
 ## Jenkins + Render
 

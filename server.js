@@ -28,8 +28,9 @@ const myrouter = require('./Routes/router');
 app.use('/api', myrouter);
 
 const frontendBuildPath = path.join(__dirname, 'frontend', 'build');
+const shouldServeFrontend = process.env.SERVE_FRONTEND !== 'false';
 
-if (fs.existsSync(frontendBuildPath)) {
+if (shouldServeFrontend && fs.existsSync(frontendBuildPath)) {
     app.use(express.static(frontendBuildPath));
 
     app.get(/^(?!\/api).*/, (req, res) => {

@@ -32,10 +32,19 @@ docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
 1. Create a Render Web Service from this repo (or use `render.yaml` Blueprint).
 2. Set env var:
    - `MONGODB_URI` = MongoDB Atlas URI
+   - `SERVE_FRONTEND = false`
 3. Copy Deploy Hook URL from:
    - Service -> **Settings** -> **Deploy Hook**
 
-## 4. Run Pipeline
+## 4. Configure Vercel (Frontend)
+
+1. Import the same GitHub repo into Vercel.
+2. Set root directory to `frontend`.
+3. Add environment variable:
+   - `REACT_APP_API_BASE_URL = https://<your-render-service>.onrender.com`
+4. Deploy and use the Vercel URL as your app URL.
+
+## 5. Run Pipeline
 
 1. Click **Build with Parameters**
 2. CI-only run:
@@ -51,12 +60,13 @@ Pipeline does:
 - Build Docker image for CI validation
 - Trigger Render deploy hook (optional)
 
-## 5. Access App
+## 6. Access App
 
 - Local Jenkins: http://localhost:8081
-- Live app: your Render service URL (from Render dashboard)
+- Live app frontend: your Vercel URL
+- Live API backend: your Render URL (`/api/...`)
 
-## 6. Cleanup (Local CI)
+## 7. Cleanup (Local CI)
 
 ```powershell
 docker compose -f jenkins/docker-compose.jenkins.yml down

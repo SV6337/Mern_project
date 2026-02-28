@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: mern-2
+    name: mern-2-api
     runtime: node
     plan: free
     rootDir: .
@@ -9,5 +9,7 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: SERVE_FRONTEND
+        value: "false"
       - key: MONGODB_URI
         sync: false
