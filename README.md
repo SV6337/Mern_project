@@ -1,134 +1,90 @@
-# MERN-2 (Node + React + MongoDB)
+# MERN-2 (Node + React + MongoDB Atlas)
 
-Production-ready MERN app with Docker, Kubernetes manifests, and Jenkins pipeline support.
+MERN app with a Node/Express backend, React frontend, Jenkins CI pipeline, and Render deployment support.
 
 ## Project Structure
 
 - `server.js` - backend entry point
 - `frontend/` - React app
 - `Models/`, `Routes/`, `views/` - backend modules
-- `k8s/` - Kubernetes manifests (namespace, app, mongo, pvc, services)
-- `Jenkinsfile` - CI/CD pipeline
+- `Jenkinsfile` - CI + optional Render deploy hook
+- `render.yaml` - Render Blueprint configuration
 
 ## Prerequisites
 
-- Docker
-- `kubectl`
-- AWS CLI (for EKS/ECR deployments)
-- Access to your EKS cluster and ECR repository
+- Node.js 18+
+- npm
+- MongoDB Atlas connection string
 
-## Local Run (Docker)
+## Local Run
+
+Create a `.env` file in project root:
+
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<db>?retryWrites=true&w=majority
+PORT=5000
+```
+
+Install dependencies and run:
 
 ```bash
-docker build -t mern-app:latest .
-docker run -p 5000:5000 mern-app:latest
+npm ci
+npm --prefix frontend ci
+npm run build
+npm start
 ```
+
+App URL:
+
+- `http://localhost:5000`
 
 Health endpoint:
 
-```bash
-curl http://localhost:5000/api/health
-```
+- `http://localhost:5000/api/health`
 
-## Kubernetes Deploy (EKS)
+## Docker Compose (Atlas)
 
-From repo root:
+Set `MONGODB_URI` in `.env`, then:
 
 ```bash
-kubectl apply -k k8s
+docker compose up -d --build
 ```
 
-Set app image (required: use a real image tag):
+## Deploy to Render
 
-```bash
-export IMAGE_URI=058264503680.dkr.ecr.ap-south-1.amazonaws.com/mern-app:latest
-kubectl -n mern set image deployment/mern-app mern-app="$IMAGE_URI"
-kubectl -n mern rollout status deployment/mern-app --timeout=300s
-```
+### Option A: Render Blueprint (recommended)
 
-Verify:
+1. Push this repo to GitHub.
+2. In Render, create **New +** -> **Blueprint**.
+3. Select this repo.
+4. Render reads `render.yaml` and creates service `mern-2`.
+5. Set environment variable:
+   - `MONGODB_URI` = your Atlas URI
+6. Deploy.
 
-```bash
-kubectl -n mern get pods -o wide
-kubectl -n mern get svc
-kubectl -n mern logs deployment/mern-app --tail=50
-```
+### Option B: Manual Web Service
 
-## Accessing the App on EKS
+- Runtime: `Node`
+- Build command: `npm ci && npm --prefix frontend ci && npm run build`
+- Start command: `npm start`
+- Environment variable: `MONGODB_URI`
 
-Current service type is `NodePort`:
+## Jenkins + Render
 
-- Service port mapping: `5000:30050/TCP`
-- URL format: `http://<worker-node-public-ip>:30050`
-- Health check: `http://<worker-node-public-ip>:30050/api/health`
+Pipeline stages:
 
-Get worker public IPs:
+1. Checkout
+2. Install backend dependencies
+3. Install frontend dependencies
+4. Build frontend
+5. Build Docker image (CI validation)
+6. Trigger Render deploy hook (optional)
 
-```bash
-kubectl get nodes -o wide
-```
+Pipeline parameters:
 
-## Common Issues & Fixes
+- `DEPLOY_TO_RENDER` (default `false`)
+- `RENDER_DEPLOY_HOOK_URL` (required if deploy is enabled)
 
-### 1) `spec.template.spec.containers[0].image: Required value`
-Cause: `IMAGE_URI` is empty.
+Get your deploy hook from Render:
 
-Fix:
-
-```bash
-export IMAGE_URI=<your-ecr-uri>:<tag>
-echo "$IMAGE_URI"
-kubectl -n mern set image deployment/mern-app mern-app="$IMAGE_URI"
-```
-
-Do **not** use `<tag>` literally in bash.
-
-### 2) `error: no context exists with the name ...`
-Cause: EKS context not added to kubeconfig.
-
-Fix:
-
-```bash
-aws eks update-kubeconfig --region ap-south-1 --name mern-cluster-2
-kubectl config get-contexts
-```
-
-### 3) Node IP URL times out
-Cause: Security group does not allow NodePort traffic.
-
-Fix (example for port `30050`):
-
-```bash
-aws ec2 authorize-security-group-ingress \
-  --region ap-south-1 \
-  --group-id <worker-node-sg-id> \
-  --protocol tcp \
-  --port 30050 \
-  --cidr 0.0.0.0/0
-```
-
-Then test:
-
-```bash
-curl http://<worker-node-public-ip>:30050/api/health
-```
-
-## Recommended for Stable Public URL
-
-Node public IPs can change. For stable access, change `mern-app` service to `LoadBalancer` (or use Ingress + domain).
-
-## Jenkins
-
-Pipeline file is available in `Jenkinsfile`.
-
-Existing docs:
-
-- `SETUP_COMPLETE.md`
-- `JENKINS.md`
-- `k8s/README.md`
-
-## Cleanup
-
-```bash
-kubectl delete -k k8s
-```
+- Render Dashboard -> your service -> Settings -> Deploy Hook

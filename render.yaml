@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: mern-2
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm ci && npm --prefix frontend ci && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false

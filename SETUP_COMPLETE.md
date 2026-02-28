@@ -1,57 +1,64 @@
-# Complete Docker + Kubernetes + Jenkins Setup Guide
+# Complete Jenkins + Render + Atlas Setup Guide
 
-## Status: ✅ All systems running
+## Status
 
-### 1. Access Jenkins
-- **URL:** http://localhost:8081
-- **Initial Admin Password:** `b392995b9ba14a31a86274c270252322`
+- Jenkins local CI: ready
+- App deployment target: Render Web Service
+- Database: MongoDB Atlas (external)
 
-Steps:
-1. Open http://localhost:8081 in browser
-2. Paste the password above to unlock Jenkins
-3. Click "Install suggested plugins"
-4. Create admin user (user/password of your choice)
-5. Click "Start using Jenkins"
+## 1. Access Jenkins
 
-### 2. Create Pipeline Job
-1. Click **New Item** (top left)
-2. Enter Job Name: **MERN-Pipeline**
-3. Select **Pipeline**
-4. Click **OK**
+- URL: http://localhost:8081
 
-In the **Pipeline** section:
-- Select **Pipeline script from SCM**
-- **SCM:** Git
-- **Repository URL:** (your git repo URL, e.g., https://github.com/your-user/MERN-2.git)
-- **Script Path:** `Jenkinsfile`
-- Click **Save**
+If this is your first launch, get the initial admin password:
 
-### 3. Run Pipeline
+```powershell
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+## 2. Create Pipeline Job
+
+1. Click **New Item**
+2. Job name: **MERN-Pipeline**
+3. Type: **Pipeline**
+4. In Pipeline config:
+   - **Pipeline script from SCM**
+   - SCM: Git
+   - Repository URL: your repo URL
+   - Script Path: `Jenkinsfile`
+
+## 3. Configure Render
+
+1. Create a Render Web Service from this repo (or use `render.yaml` Blueprint).
+2. Set env var:
+   - `MONGODB_URI` = MongoDB Atlas URI
+3. Copy Deploy Hook URL from:
+   - Service -> **Settings** -> **Deploy Hook**
+
+## 4. Run Pipeline
+
 1. Click **Build with Parameters**
-2. Choose:
-   - First run: `DEPLOY_TO_K8S = false` (CI validation only)
-   - Second run: `DEPLOY_TO_K8S = true` (includes Kubernetes deploy)
-3. Click **Build**
+2. CI-only run:
+   - `DEPLOY_TO_RENDER = false`
+3. CI + deploy run:
+   - `DEPLOY_TO_RENDER = true`
+   - `RENDER_DEPLOY_HOOK_URL = <your-render-deploy-hook-url>`
 
-The pipeline will:
-- Install dependencies
+Pipeline does:
+
+- Install backend/frontend dependencies
 - Build frontend
-- Build Docker image (`mern-app:${BUILD_NUMBER}`)
-- Deploy to Kubernetes (if enabled)
+- Build Docker image for CI validation
+- Trigger Render deploy hook (optional)
 
-### 4. Monitor Build
-- Click the build number in **Build History**
-- View **Console Output** for live logs
+## 5. Access App
 
-### 5. Access Your App
-- Kubernetes deployed app running at: http://localhost:30050
-- View pod status: `kubectl get pods -n mern`
-- View logs: `kubectl logs -n mern deploy/mern-app`
+- Local Jenkins: http://localhost:8081
+- Live app: your Render service URL (from Render dashboard)
 
-### 6. Cleanup
-Stop all services:
+## 6. Cleanup (Local CI)
+
 ```powershell
 docker compose -f jenkins/docker-compose.jenkins.yml down
-kubectl delete -k k8s
 docker compose down
 ```

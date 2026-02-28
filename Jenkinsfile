@@ -7,10 +7,8 @@ pipeline {
   }
 
   parameters {
-    booleanParam(name: 'DEPLOY_TO_K8S', defaultValue: true, description: 'Deploy to Kubernetes after building image')
-    string(name: 'K8S_NAMESPACE', defaultValue: 'mern', description: 'Kubernetes namespace')
-    string(name: 'IMAGE_NAME', defaultValue: 'mern-app', description: 'Docker image name')
-    string(name: 'IMAGE_TAG', defaultValue: '', description: 'Optional image tag override (default: build number)')
+    booleanParam(name: 'DEPLOY_TO_RENDER', defaultValue: false, description: 'Trigger Render deploy after successful build')
+    password(name: 'RENDER_DEPLOY_HOOK_URL', defaultValue: '', description: 'Optional Render deploy hook URL')
   }
 
   environment {
@@ -67,8 +65,7 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          def effectiveTag = params.IMAGE_TAG?.trim() ? params.IMAGE_TAG.trim() : "${env.BUILD_NUMBER}"
-          env.EFFECTIVE_IMAGE = "${params.IMAGE_NAME}:${effectiveTag}"
+          env.EFFECTIVE_IMAGE = "mern-app:${env.BUILD_NUMBER}"
           if (isUnix()) {
             sh "docker build -t ${env.EFFECTIVE_IMAGE} ."
           } else {
@@ -78,24 +75,23 @@ pipeline {
       }
     }
 
-    stage('Deploy to Kubernetes') {
+    stage('Trigger Render Deploy') {
       when {
-        expression { return params.DEPLOY_TO_K8S }
+        expression { return params.DEPLOY_TO_RENDER }
       }
       steps {
         script {
-          def kubeconfigPath = isUnix() ? "${env.HOME}/.kube/config" : "C:\\Users\\sathv\\.kube\\config"
-          withEnv(["KUBECONFIG=${kubeconfigPath}"]) {
-            if (isUnix()) {
-              sh "kubectl --kubeconfig=${kubeconfigPath} apply -k k8s"
-              sh "kubectl --kubeconfig=${kubeconfigPath} set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
-              sh "kubectl --kubeconfig=${kubeconfigPath} rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
-            } else {
-              bat "kubectl --kubeconfig=${kubeconfigPath} apply -k k8s"
-              bat "kubectl --kubeconfig=${kubeconfigPath} set image deployment/mern-app mern-app=${env.EFFECTIVE_IMAGE} -n ${params.K8S_NAMESPACE}"
-              bat "kubectl --kubeconfig=${kubeconfigPath} rollout status deployment/mern-app -n ${params.K8S_NAMESPACE} --timeout=120s"
-            }
+          if (!params.RENDER_DEPLOY_HOOK_URL?.trim()) {
+            error('RENDER_DEPLOY_HOOK_URL is required when DEPLOY_TO_RENDER=true')
           }
+
+          if (isUnix()) {
+            sh 'curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"'
+          } else {
+            powershell 'Invoke-WebRequest -Method POST -Uri $env:RENDER_DEPLOY_HOOK_URL | Out-Null'
+          }
+
+          echo 'Render deploy triggered successfully.'
         }
       }
     }
